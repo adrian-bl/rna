@@ -1,10 +1,9 @@
 package packet
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
-
 
 func TestRFC2181Sect52(t *testing.T) {
 	pp := &ParsedPacket{}

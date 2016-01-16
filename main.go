@@ -30,7 +30,6 @@ func main() {
 
 	for {
 		nread, remoteAddr, err := conn.ReadFromUDP(buf)
-		fmt.Printf("READ DATA\n")
 		if err != nil || nread < constants.FIX_SIZE_HEADER {
 			l.Debug(fmt.Sprintf("%v dropping malformed datagram: size=%d bytes, err=%v\n", remoteAddr, nread, err))
 			continue

@@ -55,12 +55,36 @@ func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *cache.CacheResult)
 			c <- cerr
 			break
 		}
+
+		// No such type exists in cache, but maybe we got a CNAME... horray.
+		cres, _ = cq.cache.Lookup(q.Name, constants.TYPE_CNAME)
+		if cres != nil {
+			if len(cres.ResourceRecord) == 1 {
+				// We do not support weird multi-record cnames
+				target_label, err := packet.ParseName(cres.ResourceRecord[0].Data)
+				if err == nil {
+					// Restart query with cname label but inherit types of original query.
+					target_chan := make(chan *cache.CacheResult)
+					target_q := packet.QuestionFormat{Name: target_label, Type: q.Type, Class: q.Class}
+					go cq.collapsedLookup(target_q, target_chan)
+					target_res := <-target_chan
+					if target_res != nil {
+						// not a dead cname: we got the requested record -> append it to original cache reply
+						cres.ResourceRecord = append(cres.ResourceRecord, target_res.ResourceRecord...)
+					}
+					c <- cres
+				}
+			}
+			break
+		}
+
 		pp := cq.advanceCache(q)
 		progress := cq.blockForQuery(pp)
 		if progress == false {
 			i++
 		}
 	}
+	// return pseudio-nil if we give up
 	close(c)
 }
 

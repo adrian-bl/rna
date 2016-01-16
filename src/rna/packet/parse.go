@@ -128,6 +128,8 @@ func parseResourceRecord(buf []byte, spos int) (rr ResourceRecordFormat, c int, 
 		if c+q_rdlen <= len(buf) { // fixme!
 			switch rr.Type {
 			case constants.TYPE_NS:
+				fallthrough
+			case constants.TYPE_CNAME:
 				// This might be compressed: we uncompress this label
 				label, _, err := parseName(buf, c)
 				if err == nil {
