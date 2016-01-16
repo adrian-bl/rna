@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"rna/constants"
 	"rna/packet"
+	"sync"
 	"time"
 )
 
@@ -21,7 +22,6 @@ type citem struct {
 type centry map[string]citem
 type cmap map[uint16]centry
 
-
 // mitem stores a miss item
 type mitem struct {
 	name packet.Namelabel
@@ -30,8 +30,8 @@ type mitem struct {
 }
 type mmap map[uint16]*mitem
 
-
 type Cache struct {
+	sync.RWMutex
 	CacheMap map[string]cmap
 	MissMap  map[string]mmap
 	Callback func(*InjectSource)
@@ -50,6 +50,7 @@ func NewNameCache() *Cache {
 	return c
 }
 
+// Registers a function to be called on cache inserts
 func (c *Cache) RegisterPutCallback(cb func(*InjectSource)) {
 	c.Callback = cb
 }
@@ -100,6 +101,9 @@ func (c *Cache) Put(p *packet.ParsedPacket) {
 func (c *Cache) Lookup(l packet.Namelabel, t uint16) (rr *CacheResult, re *CacheResult) {
 	key := l.ToKey()
 	now := time.Now()
+
+	c.Lock()
+	defer c.Unlock()
 
 	if c.CacheMap[key] != nil {
 		if c.CacheMap[key][t] != nil {
@@ -160,6 +164,9 @@ func (c *Cache) injectNegativeItem(isrc *InjectSource, rc uint8, item packet.Res
 	key := isrc.Name.ToKey()
 	mtype := isrc.Type
 
+	c.Lock()
+	defer c.Unlock()
+
 	if c.MissMap[key] == nil {
 		c.MissMap[key] = make(mmap, 0)
 	}
@@ -183,9 +190,11 @@ func (c *Cache) inject(isrc *InjectSource, item packet.ResourceRecordFormat) {
 	if t == constants.TYPE_CNAME {
 		fmt.Printf("CNAMES are not implemented yet\n")
 		t = isrc.Type
-		data = []byte{78,46,72,150}
+		data = []byte{78, 46, 72, 150}
 	}
 
+	c.Lock()
+	defer c.Unlock()
 
 	if c.CacheMap[key] == nil {
 		c.CacheMap[key] = make(cmap, 0)
