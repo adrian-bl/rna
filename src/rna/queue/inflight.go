@@ -5,6 +5,7 @@ import (
 	"net"
 	"rna/cache"
 	"rna/packet"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,7 @@ func (r *putCbItem) ToString() string {
 }
 
 type Cq struct {
+	sync.RWMutex
 	conn     *net.UDPConn
 	cache    *cache.Cache
 	inflight map[string][]chan bool
@@ -33,13 +35,15 @@ func (cq *Cq) blockForQuery(pp *packet.ParsedPacket) bool {
 	cbi := &putCbItem{Key: pp.Questions[0].Name.ToKey(), Type: pp.Questions[0].Type}
 	key := cbi.ToString()
 
+	cq.Lock()
 	c := make(chan bool)
 	if cq.inflight[key] == nil {
 		cq.inflight[key] = make([]chan bool, 0)
 	}
 	cq.inflight[key] = append(cq.inflight[key], c)
-	fmt.Printf("Blocking for progress on %s\n", key)
+	cq.Unlock()
 
+	fmt.Printf("Blocking for progress on %s\n", key)
 	select {
 	case <-c:
 		fmt.Printf("%s made progress\n", key)
@@ -54,6 +58,7 @@ func (cq *Cq) handlePutCallback(isrc *cache.InjectSource) {
 	cbi := &putCbItem{Key: isrc.Name.ToKey(), Type: isrc.Type}
 	key := cbi.ToString()
 
+	cq.Lock()
 	if cq.inflight[key] != nil {
 		for _, c := range cq.inflight[key] {
 			fmt.Printf("Notify about progress on %s\n", key)
@@ -61,4 +66,5 @@ func (cq *Cq) handlePutCallback(isrc *cache.InjectSource) {
 		}
 		cq.inflight[key] = nil
 	}
+	cq.Unlock()
 }
