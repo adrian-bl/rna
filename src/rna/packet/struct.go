@@ -25,7 +25,7 @@ type Namelabel struct {
 
 // Returns a string version of given Namelabel reference
 func (l *Namelabel) ToKey() string {
-	return strings.Join(l.name, "/") + ";"
+	return strings.ToUpper(strings.Join(l.name, "/") + ";")
 }
 
 // Pops a label from the label list, walking the hierarchy
