@@ -57,7 +57,7 @@ func (cq *Cq) handlePutCallback(isrc *cache.InjectSource) {
 	if cq.inflight[key] != nil {
 		for _, c := range cq.inflight[key] {
 			fmt.Printf("Notify about progress on %s\n", key)
-			c <- true
+			close(c)
 		}
 		cq.inflight[key] = nil
 	}
