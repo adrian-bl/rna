@@ -182,7 +182,7 @@ func (c *Cache) inject(isrc *InjectSource, item packet.ResourceRecordFormat) {
 
 	if t == constants.TYPE_CNAME {
 		fmt.Printf("CNAMES are not implemented yet\n")
-		t = 1
+		t = isrc.Type
 		data = []byte{78,46,72,150}
 	}
 
