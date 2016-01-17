@@ -14,6 +14,11 @@ type clientRequest struct {
 	RemoteAddr *net.UDPAddr
 }
 
+type lookupRes struct {
+	cres     *cache.CacheResult
+	negative bool
+}
+
 func (cq Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
 	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote})
 }
@@ -23,12 +28,13 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) == 1 {
 		q := cr.Query.Questions[0]
-		c := make(chan *cache.CacheResult)
+		c := make(chan *lookupRes)
 		go cq.collapsedLookup(q, c)
-		cres := <-c
-		fmt.Printf("Got a reply! %v\n", cres)
+		lres := <-c
+		fmt.Printf("Got a reply! %v\n", lres)
 
-		if cres != nil { // fixme: error
+		if lres != nil { // fixme: error
+			cres := lres.cres
 			p := &packet.ParsedPacket{}
 			p.Header.Id = cr.Query.Header.Id
 			p.Header.Response = true
@@ -43,16 +49,16 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 
 }
 
-func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *cache.CacheResult) {
+func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 
 	for i := 0; i < 5; {
 		cres, cerr := cq.cache.Lookup(q.Name, q.Type)
 		if cres != nil {
-			c <- cres
+			c <- &lookupRes{cres, false}
 			break
 		}
 		if cerr != nil {
-			c <- cerr
+			c <- &lookupRes{cerr, true}
 			break
 		}
 
@@ -64,15 +70,15 @@ func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *cache.CacheResult)
 				target_label, err := packet.ParseName(cres.ResourceRecord[0].Data)
 				if err == nil {
 					// Restart query with cname label but inherit types of original query.
-					target_chan := make(chan *cache.CacheResult)
+					target_chan := make(chan *lookupRes)
 					target_q := packet.QuestionFormat{Name: target_label, Type: q.Type, Class: q.Class}
 					go cq.collapsedLookup(target_q, target_chan)
 					target_res := <-target_chan
 					if target_res != nil {
 						// not a dead cname: we got the requested record -> append it to original cache reply
-						cres.ResourceRecord = append(cres.ResourceRecord, target_res.ResourceRecord...)
+						cres.ResourceRecord = append(cres.ResourceRecord, target_res.cres.ResourceRecord...)
 					}
-					c <- cres
+					c <- &lookupRes{cres, false}
 				}
 			}
 			break
@@ -115,9 +121,12 @@ POP_LOOP:
 			}
 			if candidate_cres == nil && candidate_label.Len() > 0 {
 				fmt.Printf("We could chain: %v\n", candidate_label)
-				c := make(chan *cache.CacheResult)
+				c := make(chan *lookupRes)
 				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c)
-				candidate_cres = <-c
+				lres := <-c
+				if lres != nil && lres.negative == false {
+					candidate_cres = lres.cres
+				}
 			}
 			if candidate_cres != nil {
 				fmt.Printf("We got an rr: %v\n", candidate_cres)

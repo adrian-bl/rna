@@ -131,7 +131,7 @@ func (c *Cache) Lookup(l packet.Namelabel, t uint16) (rr *CacheResult, re *Cache
 					plabel, _ := packet.ParseName(rlabel)
 					ent := make([]packet.ResourceRecordFormat, 0)
 					ent = append(ent, packet.ResourceRecordFormat{Name: plabel, Class: constants.CLASS_IN, Type: constants.TYPE_SOA, Ttl: ttl, Data: item.data[rend:]})
-					rr = &CacheResult{ResourceRecord: ent, ResponseCode: item.rcode}
+					re = &CacheResult{ResourceRecord: ent, ResponseCode: item.rcode}
 				}
 			}
 		}
