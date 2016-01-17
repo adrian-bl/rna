@@ -179,6 +179,14 @@ func (c *Cache) injectNegativeItem(isrc InjectSource, item packet.ResourceRecord
 	item.Data = append([]byte{byte(len(rawlabel))}, item.Data...)
 	item.Name = isrc.Name // use the looked up label as cache key, not the SOA label
 
+	// We shall also use the source TYPE *unless* we are storing an NXDOMAIN entry
+	if rcode != constants.RC_NAME_ERR {
+		item.Type = isrc.Type
+	} else {
+		// this was an NXDOMAIN -> a negative SOA entry signals that NO RRs exist
+		item.Type = constants.TYPE_SOA
+	}
+
 	c.injectInternal(c.MissMap, isrc, item, rcode)
 }
 
