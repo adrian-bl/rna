@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"rna/cache"
+	l "rna/log"
 	"rna/packet"
 	"sync"
 	"time"
@@ -43,13 +44,13 @@ func (cq *Cq) blockForQuery(pp *packet.ParsedPacket) bool {
 	cq.inflight[key] = append(cq.inflight[key], c)
 	cq.Unlock()
 
-	fmt.Printf("Blocking for progress on %s\n", key)
+	l.Debug("Blocking for progress on %s", key)
 	select {
 	case <-c:
-		fmt.Printf("%s made progress\n", key)
+		l.Debug("%s progressed", key)
 		return true
 	case <-time.After(time.Second * 2):
-		fmt.Printf("%s TIMED OUT!\n", key)
+		l.Debug("%s timed out!", key)
 		return false
 	}
 }
@@ -61,7 +62,7 @@ func (cq *Cq) handlePutCallback(isrc *cache.InjectSource) {
 	cq.Lock()
 	if cq.inflight[key] != nil {
 		for _, c := range cq.inflight[key] {
-			fmt.Printf("Notify about progress on %s\n", key)
+			l.Debug("Broadcasting progress on %s", key)
 			close(c)
 		}
 		cq.inflight[key] = nil

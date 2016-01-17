@@ -12,7 +12,7 @@ import (
 func main() {
 	l.Info("Starting up")
 
-	listenAddr, err := net.ResolveUDPAddr("udp", ":53")
+	listenAddr, err := net.ResolveUDPAddr("udp", ":5353")
 	if err != nil {
 		l.Panic("ResolveUDPAddr failed: %v", err)
 	}

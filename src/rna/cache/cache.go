@@ -3,6 +3,7 @@ package cache
 import (
 	"fmt"
 	"rna/constants"
+	l "rna/log"
 	"rna/packet"
 	"sync"
 	"time"
@@ -62,13 +63,12 @@ func (c *Cache) Put(p *packet.ParsedPacket) {
 	var qname packet.Namelabel
 	var qtype uint16
 	for _, q := range p.Questions {
-		fmt.Printf("Q:%v\n", q.Name)
+		l.Debug("QNAME=%v", q.Name)
 		qname = q.Name
 		qtype = q.Type
 	}
 
 	isrc := &InjectSource{Name: qname, Type: qtype}
-	fmt.Printf("GOT: %+v\n", qname)
 
 	if p.Header.Authoritative == true {
 		for _, n := range p.Answers {
@@ -159,7 +159,7 @@ func (c *Cache) notify(isrc *InjectSource) {
 // item is supposed to be a SOA
 func (c *Cache) injectNegativeItem(isrc *InjectSource, rc uint8, item packet.ResourceRecordFormat) {
 	if item.Type != constants.TYPE_SOA {
-		panic(fmt.Errorf("NOT A SOA!"))
+		l.Panic("can not inject non-soa type: %v", item)
 	}
 	key := isrc.Name.ToKey()
 	mtype := isrc.Type
@@ -199,7 +199,7 @@ func (c *Cache) inject(isrc *InjectSource, item packet.ResourceRecordFormat) {
 
 	target := make([]byte, len(data))
 	copy(target, data)
-	fmt.Printf("+ inject: %+v\n", item)
+	l.Debug("+ cache inject: %v", item)
 	c.CacheMap[key][t][string(data)] = citem{data: target, deadline: time.Now().Add(time.Duration(ttl) * time.Second)}
 	c.notify(isrc)
 }
