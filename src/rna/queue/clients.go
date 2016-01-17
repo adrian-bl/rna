@@ -40,7 +40,11 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 			p.Header.Response = true
 			p.Header.ResponseCode = cres.ResponseCode
 			p.Questions = cr.Query.Questions
-			p.Answers = append(p.Answers, cres.ResourceRecord...)
+			if lres.negative {
+				p.Nameservers = append(p.Nameservers, cres.ResourceRecord...)
+			} else {
+				p.Answers = append(p.Answers, cres.ResourceRecord...)
+			}
 			cq.conn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
 		}
 	} else {

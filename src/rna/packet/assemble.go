@@ -8,21 +8,24 @@ func Assemble(p *ParsedPacket) []byte {
 	buf := make([]byte, 0) //constants.FIX_SIZE_HEADER)
 
 	for _, q := range p.Questions {
-		buf = append(buf, EncodeName(q.Name)...)
-		buf = append(buf, getU16Int(q.Type)...)
-		buf = append(buf, getU16Int(q.Class)...)
+		buf = append(buf, assembleQuestion(q)...)
 	}
 	p.Header.QuestionCount = uint16(len(p.Questions))
 
-	for _, a := range p.Answers {
-		buf = append(buf, EncodeName(a.Name)...)
-		buf = append(buf, getU16Int(a.Type)...)
-		buf = append(buf, getU16Int(a.Class)...)
-		buf = append(buf, getU32Int(a.Ttl)...)
-		buf = append(buf, getU16Int(uint16(len(a.Data)))...)
-		buf = append(buf, a.Data...)
+	for _, rr := range p.Answers {
+		buf = append(buf, assembleResourceRecord(rr)...)
 	}
 	p.Header.AnswerCount = uint16(len(p.Answers))
+
+	for _, rr := range p.Nameservers {
+		buf = append(buf, assembleResourceRecord(rr)...)
+	}
+	p.Header.NameserverCount = uint16(len(p.Nameservers))
+
+	for _, rr := range p.Additionals {
+		buf = append(buf, assembleResourceRecord(rr)...)
+	}
+	p.Header.AdditionalCount = uint16(len(p.Additionals))
 
 	payload := assembleHeader(p.Header)
 	payload = append(payload, buf...)
@@ -52,6 +55,29 @@ func setFlag(b *byte, condition bool, val byte) {
 	if condition == true {
 		*b |= val
 	}
+}
+
+// assembleQuestion transformas a QuestionFormat struct into
+// the on-wire format
+func assembleQuestion(q QuestionFormat) []byte {
+	buf := make([]byte, 0)
+	buf = append(buf, EncodeName(q.Name)...)
+	buf = append(buf, getU16Int(q.Type)...)
+	buf = append(buf, getU16Int(q.Class)...)
+	return buf
+}
+
+// assembleResourceRecord transforms a ResourceRecordFormat struct
+// into the on-wire format
+func assembleResourceRecord(rr ResourceRecordFormat) []byte {
+	buf := make([]byte, 0)
+	buf = append(buf, EncodeName(rr.Name)...)
+	buf = append(buf, getU16Int(rr.Type)...)
+	buf = append(buf, getU16Int(rr.Class)...)
+	buf = append(buf, getU32Int(rr.Ttl)...)
+	buf = append(buf, getU16Int(uint16(len(rr.Data)))...)
+	buf = append(buf, rr.Data...)
+	return buf
 }
 
 func assembleHeader(h ParsedPacketHeader) []byte {
