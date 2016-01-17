@@ -2,15 +2,15 @@ package log
 
 import "fmt"
 
-func Info(msg string) {
-	fmt.Printf("Info: %s\n", msg)
+func Info(format string, a ...interface{}) {
+	fmt.Printf("INFO:  "+format+"\n", a...)
 }
 
-func Debug(msg string) {
-	fmt.Printf("Debug: %s\n", msg)
+func Debug(format string, a ...interface{}) {
+	fmt.Printf("DEBUG: "+format+"\n", a...)
 }
 
-func Panic(msg error) {
-	fmt.Printf("PANIC: %v\n", msg)
-	panic(msg)
+func Panic(format string, a ...interface{}) {
+	fmt.Printf("PANIC: "+format+"\n", a...)
+	panic(fmt.Errorf(format, a...))
 }

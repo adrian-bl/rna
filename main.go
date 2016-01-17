@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"rna/cache"
 	"rna/constants"
@@ -15,12 +14,12 @@ func main() {
 
 	listenAddr, err := net.ResolveUDPAddr("udp", ":53")
 	if err != nil {
-		l.Panic(err)
+		l.Panic("ResolveUDPAddr failed: %v", err)
 	}
 
 	conn, err := net.ListenUDP("udp", listenAddr)
 	if err != nil {
-		l.Panic(err)
+		l.Panic("listen failed: %v", err)
 	}
 
 	buf := make([]byte, constants.MAX_SIZE_UDP) // Upper limit as defined by RFC 1035 2.3.4
@@ -31,13 +30,13 @@ func main() {
 	for {
 		nread, remoteAddr, err := conn.ReadFromUDP(buf)
 		if err != nil || nread < constants.FIX_SIZE_HEADER {
-			l.Debug(fmt.Sprintf("%v dropping malformed datagram: size=%d bytes, err=%v\n", remoteAddr, nread, err))
+			l.Debug("%v dropping malformed datagram. Size=%d, err=%v", remoteAddr, nread, err)
 			continue
 		}
 
 		p, err := packet.Parse(buf[0:nread])
 		if err != nil {
-			l.Debug(fmt.Sprintf("%v failed to parse datagram: err=%v\n", remoteAddr, err))
+			l.Debug("%v failed to parse datagram, err=%v", remoteAddr, err)
 			continue
 		}
 
@@ -49,7 +48,7 @@ func main() {
 			nc.Put(p)
 		} else {
 			// DOES NOT COMPUTE.
-			fmt.Printf("packet dropped: from %v %v\n", remoteAddr, p)
+			l.Info("%v dropped packet", remoteAddr)
 		}
 
 	}
