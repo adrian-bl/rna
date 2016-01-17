@@ -6,6 +6,7 @@ import (
 	"net"
 	"rna/cache"
 	"rna/constants"
+	l "rna/log"
 	"rna/packet"
 )
 
@@ -31,8 +32,7 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 		c := make(chan *lookupRes)
 		go cq.collapsedLookup(q, c)
 		lres := <-c
-		fmt.Printf("Got a reply! %v\n", lres)
-
+		l.Debug("final lookup reply -> %v", lres)
 		if lres != nil { // fixme: error
 			cres := lres.cres
 			p := &packet.ParsedPacket{}
@@ -48,7 +48,7 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 			cq.conn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
 		}
 	} else {
-		fmt.Printf("Dropping nonsense query")
+		l.Info("Dropping nonsense query")
 	}
 
 }
@@ -114,7 +114,7 @@ POP_LOOP:
 			for _, candidate_data := range nsrec.ResourceRecord {
 				name, err := packet.ParseName(candidate_data.Data)
 				if err == nil {
-					fmt.Printf("Nameserver %v handles %v\n", name, label)
+					l.Debug("NS %v handles %v", name, label)
 					cres, _ := cq.cache.Lookup(name, constants.TYPE_A)
 					if cres != nil {
 						candidate_cres = cres
@@ -124,7 +124,7 @@ POP_LOOP:
 				}
 			}
 			if candidate_cres == nil && candidate_label.Len() > 0 {
-				fmt.Printf("We could chain: %v\n", candidate_label)
+				l.Debug("Looking up IP of known candidate: %v", candidate_label)
 				c := make(chan *lookupRes)
 				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c)
 				lres := <-c
@@ -133,10 +133,10 @@ POP_LOOP:
 				}
 			}
 			if candidate_cres != nil {
-				fmt.Printf("We got an rr: %v\n", candidate_cres)
+				l.Debug("We got an RR: %v", candidate_cres)
 				for _, v := range candidate_cres.ResourceRecord {
 					if v.Type != constants.TYPE_A {
-						panic(fmt.Errorf("Not an a type: %v\n", v))
+						l.Panic("Not an A type: %v", v)
 					}
 					targetNS = fmt.Sprintf("%d.%d.%d.%d:53", v.Data[0], v.Data[1], v.Data[2], v.Data[3])
 					break POP_LOOP
@@ -156,7 +156,7 @@ POP_LOOP:
 	remoteNs, err := net.ResolveUDPAddr("udp", targetNS)
 
 	if err == nil {
-		fmt.Printf("+ op=query, remote=%s, type=%d, id=%d, name=%v\n", targetNS, targetQT, pp.Header.Id, q.Name)
+		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, q.Name)
 		cq.conn.WriteToUDP(packet.Assemble(pp), remoteNs)
 	}
 
