@@ -55,7 +55,7 @@ func (cq *Cq) blockForQuery(pp *packet.ParsedPacket) bool {
 	}
 }
 
-func (cq *Cq) handlePutCallback(isrc *cache.InjectSource) {
+func (cq *Cq) handlePutCallback(isrc cache.InjectSource) {
 	cbi := &putCbItem{Key: isrc.Name.ToKey(), Type: isrc.Type}
 	key := cbi.ToString()
 

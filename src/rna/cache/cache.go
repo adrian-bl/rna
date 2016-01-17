@@ -19,23 +19,16 @@ type CacheResult struct {
 type citem struct {
 	data     []byte
 	deadline time.Time
+	rcode    uint8
 }
 type centry map[string]citem
 type cmap map[uint16]centry
 
-// mitem stores a miss item
-type mitem struct {
-	name packet.Namelabel
-	data []byte
-	rc   uint8
-}
-type mmap map[uint16]*mitem
-
 type Cache struct {
 	sync.RWMutex
 	CacheMap map[string]cmap
-	MissMap  map[string]mmap
-	Callback func(*InjectSource)
+	MissMap  map[string]cmap
+	Callback func(InjectSource)
 }
 
 type InjectSource struct {
@@ -47,12 +40,12 @@ type InjectSource struct {
 func NewNameCache() *Cache {
 	c := &Cache{}
 	c.CacheMap = make(map[string]cmap, 0)
-	c.MissMap = make(map[string]mmap, 0)
+	c.MissMap = make(map[string]cmap, 0)
 	return c
 }
 
 // Registers a function to be called on cache inserts
-func (c *Cache) RegisterPutCallback(cb func(*InjectSource)) {
+func (c *Cache) RegisterPutCallback(cb func(InjectSource)) {
 	c.Callback = cb
 }
 
@@ -68,28 +61,28 @@ func (c *Cache) Put(p *packet.ParsedPacket) {
 		qtype = q.Type
 	}
 
-	isrc := &InjectSource{Name: qname, Type: qtype}
+	isrc := InjectSource{Name: qname, Type: qtype}
 
 	if p.Header.Authoritative == true {
 		for _, n := range p.Answers {
 			if n.Class == constants.CLASS_IN {
-				c.inject(isrc, n)
+				c.injectPositiveItem(isrc, n)
 			}
 		}
 	}
 
 	for _, n := range p.Additionals {
 		if n.Class == constants.CLASS_IN {
-			c.inject(isrc, n)
+			c.injectPositiveItem(isrc, n)
 		}
 	}
 
 	for _, n := range p.Nameservers {
 		if n.Type == constants.TYPE_NS && n.Class == constants.CLASS_IN {
-			c.inject(isrc, n)
+			c.injectPositiveItem(isrc, n)
 		}
 		if p.Header.AnswerCount == 0 && n.Type == constants.TYPE_SOA && n.Class == constants.CLASS_IN {
-			c.injectNegativeItem(isrc, p.Header.ResponseCode, n)
+			c.injectNegativeItem(isrc, n, p.Header.ResponseCode)
 		}
 	}
 }
@@ -124,16 +117,25 @@ func (c *Cache) Lookup(l packet.Namelabel, t uint16) (rr *CacheResult, re *Cache
 	if rr == nil && c.MissMap[key] != nil {
 		mtype := t
 		if c.MissMap[key][constants.TYPE_SOA] != nil {
-			mtype = constants.TYPE_SOA // this marks an NX domain
+			// we do have a negative soa entry, so the domain simply does not exist
+			// and there is no point in looking up 't'
+			mtype = constants.TYPE_SOA
 		}
 		if c.MissMap[key][mtype] != nil {
-			item := c.MissMap[key][mtype]
-			ent := make([]packet.ResourceRecordFormat, 0)
-			ent = append(ent, packet.ResourceRecordFormat{Name: item.name, Class: constants.CLASS_IN, Type: constants.TYPE_SOA, Ttl: 1234, Data: item.data})
-			re = &CacheResult{ResourceRecord: ent, ResponseCode: item.rc}
+			for _, item := range c.MissMap[key][mtype] {
+				if now.Before(item.deadline) {
+					ttl := uint32(item.deadline.Sub(now).Seconds())
+					// unparse fiddled-in soa label
+					rend := item.data[0] + 1
+					rlabel := item.data[1:rend]
+					plabel, _ := packet.ParseName(rlabel)
+					ent := make([]packet.ResourceRecordFormat, 0)
+					ent = append(ent, packet.ResourceRecordFormat{Name: plabel, Class: constants.CLASS_IN, Type: constants.TYPE_SOA, Ttl: ttl, Data: item.data[rend:]})
+					rr = &CacheResult{ResourceRecord: ent, ResponseCode: item.rcode}
+				}
+			}
 		}
 	}
-
 	return
 }
 
@@ -149,7 +151,7 @@ func (c *Cache) dump() {
 
 }
 
-func (c *Cache) notify(isrc *InjectSource) {
+func (c *Cache) notify(isrc InjectSource) {
 	if c.Callback != nil {
 		c.Callback(isrc)
 	}
@@ -157,31 +159,36 @@ func (c *Cache) notify(isrc *InjectSource) {
 
 // injectNegativeItem marks given label as non existing. rc defines the return code
 // item is supposed to be a SOA
-func (c *Cache) injectNegativeItem(isrc *InjectSource, rc uint8, item packet.ResourceRecordFormat) {
+func (c *Cache) injectNegativeItem(isrc InjectSource, item packet.ResourceRecordFormat, rcode uint8) {
 	if item.Type != constants.TYPE_SOA {
-		l.Panic("can not inject non-soa type: %v", item)
-	}
-	key := isrc.Name.ToKey()
-	mtype := isrc.Type
-
-	c.Lock()
-	defer c.Unlock()
-
-	if c.MissMap[key] == nil {
-		c.MissMap[key] = make(mmap, 0)
-	}
-	if rc == constants.RC_NAME_ERR {
-		mtype = constants.TYPE_SOA
+		panic("Not a SOA!")
 	}
 
-	target := make([]byte, len(item.Data))
-	copy(target, item.Data)
-	c.MissMap[key][mtype] = &mitem{rc: rc, data: target, name: item.Name}
-	c.notify(isrc)
+	// use SOA.MINTTL as ttl for this negative cache entry
+	// this *should* be the same as the TTL set by upstream, but
+	// there are some funny DNS servers out there...
+	// fixme: we should probably enforce min-max values here
+	soaTtl := packet.ParseSoaTtl(item.Data)
+	item.Ttl = soaTtl
+
+	// xxx: The cache key for this entry should not be the response label but the
+	// question (isrc) label. However: The response label needs to be preserved
+	// so we are prefixing it to the raw data for now (until we have a nicer API)
+	rawlabel := packet.EncodeName(item.Name)
+	item.Data = append(rawlabel, item.Data...)
+	item.Data = append([]byte{byte(len(rawlabel))}, item.Data...)
+	item.Name = isrc.Name // use the looked up label as cache key, not the SOA label
+
+	c.injectInternal(c.MissMap, isrc, item, rcode)
 }
 
 // inject puts given resource record format item into our positive cache
-func (c *Cache) inject(isrc *InjectSource, item packet.ResourceRecordFormat) {
+func (c *Cache) injectPositiveItem(isrc InjectSource, item packet.ResourceRecordFormat) {
+	c.injectInternal(c.CacheMap, isrc, item, 0)
+}
+
+// Internal implementation of cache who works on multiple maps
+func (c *Cache) injectInternal(m map[string]cmap, isrc InjectSource, item packet.ResourceRecordFormat, rcode uint8) {
 	key := item.Name.ToKey()
 	t := item.Type
 	data := item.Data
@@ -190,16 +197,17 @@ func (c *Cache) inject(isrc *InjectSource, item packet.ResourceRecordFormat) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.CacheMap[key] == nil {
-		c.CacheMap[key] = make(cmap, 0)
+	if m[key] == nil {
+		m[key] = make(cmap, 0)
 	}
-	if c.CacheMap[key][t] == nil {
-		c.CacheMap[key][t] = make(centry, 0)
+	if m[key][t] == nil {
+		m[key][t] = make(centry, 0)
 	}
 
-	target := make([]byte, len(data))
-	copy(target, data)
-	l.Debug("+ cache inject: %v", item)
-	c.CacheMap[key][t][string(data)] = citem{data: target, deadline: time.Now().Add(time.Duration(ttl) * time.Second)}
+	l.Debug("+ cache inject: %+v", item)
+
+	cpy := make([]byte, len(data))
+	copy(cpy, data)
+	m[key][t][string(data)] = citem{data: cpy, deadline: time.Now().Add(time.Duration(ttl) * time.Second), rcode: rcode}
 	c.notify(isrc)
 }

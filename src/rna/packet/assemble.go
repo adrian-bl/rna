@@ -8,14 +8,14 @@ func Assemble(p *ParsedPacket) []byte {
 	buf := make([]byte, 0) //constants.FIX_SIZE_HEADER)
 
 	for _, q := range p.Questions {
-		buf = append(buf, encodeName(q.Name)...)
+		buf = append(buf, EncodeName(q.Name)...)
 		buf = append(buf, getU16Int(q.Type)...)
 		buf = append(buf, getU16Int(q.Class)...)
 	}
 	p.Header.QuestionCount = uint16(len(p.Questions))
 
 	for _, a := range p.Answers {
-		buf = append(buf, encodeName(a.Name)...)
+		buf = append(buf, EncodeName(a.Name)...)
 		buf = append(buf, getU16Int(a.Type)...)
 		buf = append(buf, getU16Int(a.Class)...)
 		buf = append(buf, getU32Int(a.Ttl)...)
@@ -75,7 +75,7 @@ func assembleHeader(h ParsedPacketHeader) []byte {
 	return buf
 }
 
-func encodeName(n Namelabel) (payload []byte) {
+func EncodeName(n Namelabel) (payload []byte) {
 	for _, str := range n.name {
 		payload = append(payload, uint8(len(str)))
 		payload = append(payload, str...)

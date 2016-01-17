@@ -133,7 +133,7 @@ func parseResourceRecord(buf []byte, spos int) (rr ResourceRecordFormat, c int, 
 				// This might be compressed: we uncompress this label
 				label, _, err := parseName(buf, c)
 				if err == nil {
-					rr.Data = encodeName(label)
+					rr.Data = EncodeName(label)
 				}
 			default:
 				rr.Data = buf[c:(c + q_rdlen)]
@@ -150,6 +150,11 @@ func parseResourceRecord(buf []byte, spos int) (rr ResourceRecordFormat, c int, 
 func ParseName(buf []byte) (Namelabel, error) {
 	n, _, err := parseName(buf, 0)
 	return n, err
+}
+
+func ParseSoaTtl(buf []byte) uint32 {
+	l := len(buf)
+	return nUint32(buf[l-4:])
 }
 
 func parseName(buf []byte, spos int) (n Namelabel, c int, err error) {
