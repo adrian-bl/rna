@@ -167,9 +167,14 @@ func (c *Cache) injectNegativeItem(isrc InjectSource, item packet.ResourceRecord
 	// use SOA.MINTTL as ttl for this negative cache entry
 	// this *should* be the same as the TTL set by upstream, but
 	// there are some funny DNS servers out there...
-	// fixme: we should probably enforce min-max values here
 	soaTtl := packet.ParseSoaTtl(item.Data)
 	item.Ttl = soaTtl
+	switch {
+		case item.Ttl < 5:
+			item.Ttl = 5
+		case item.Ttl > 600:
+			item.Ttl = 600
+	}
 
 	// xxx: The cache key for this entry should not be the response label but the
 	// question (isrc) label. However: The response label needs to be preserved
