@@ -164,11 +164,13 @@ func (c *Cache) injectNegativeItem(isrc InjectSource, item packet.ResourceRecord
 		panic("Not a SOA!")
 	}
 
-	// use SOA.MINTTL as ttl for this negative cache entry
-	// this *should* be the same as the TTL set by upstream, but
-	// there are some funny DNS servers out there...
+	// Unbound uses the RR TTL while some other caches seem to use SOA.MINTTL ?
+	// We are going unbound-style but emit a warning
 	soaTtl := packet.ParseSoaTtl(item.Data)
-	item.Ttl = soaTtl
+	if item.Ttl != soaTtl {
+		l.Info("SOA ttl mismatch: %d != %d (isrc=%+v)", item.Ttl, soaTtl, isrc)
+	}
+
 	switch {
 		case item.Ttl < 5:
 			item.Ttl = 5
