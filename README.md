@@ -12,7 +12,7 @@ Some bug highlights:
 
 * Does not validate any replies - DNS Cache poisoning ahoi!
 * Fails to decompress any non NS/CNAME RR (you'll get funny dig output)
-* The negative cache never expires
+* ~~The negative cache never expires~~
 * Can only talk to IPv4 Nameservers
 * No loop protection (eg: cnames pointing to each other, endless delegations, etc)
 
