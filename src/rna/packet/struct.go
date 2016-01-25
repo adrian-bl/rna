@@ -42,6 +42,23 @@ func (l *Namelabel) Len() int {
 	return len(l.name)
 }
 
+// Returns true if given namelabel is a child of *parent
+func (l *Namelabel) IsChildOf(parent *Namelabel) bool {
+	lc := l.Len()
+	lp := parent.Len()
+
+	if lp >= lc {
+		return false
+	}
+
+	for i := 1 ; i <= lp ; i++ {
+		if l.name[lc-i] != parent.name[lp-i] {
+			return false
+		}
+	}
+	return true
+}
+
 // A fully parsed DNS packet
 type ParsedPacket struct {
 	Header      ParsedPacketHeader
