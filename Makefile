@@ -5,4 +5,4 @@ fmt:
 	find main.go src -type f -exec gofmt -w {} \;
 
 test:
-	go test rna/packet
+	go test -v rna/packet
