@@ -24,8 +24,8 @@ func main() {
 
 	buf := make([]byte, constants.MAX_SIZE_UDP) // Upper limit as defined by RFC 1035 2.3.4
 	nc := cache.NewNameCache()
-
-	cq := queue.NewClientQueue(conn, nc)
+	sq := queue.NewServerQueue(nc)
+	cq := queue.NewClientQueue(conn, nc, sq)
 
 	for {
 		nread, remoteAddr, err := conn.ReadFromUDP(buf)
@@ -45,7 +45,7 @@ func main() {
 			cq.AddClientRequest(p, remoteAddr)
 		} else if p.Header.Response == true && p.Header.Opcode == constants.OP_QUERY {
 			// A reply, try to put it into our cache
-			nc.Put(p)
+			nc.Put(p, remoteAddr)
 		} else {
 			// DOES NOT COMPUTE.
 			l.Info("%v dropped packet", remoteAddr)

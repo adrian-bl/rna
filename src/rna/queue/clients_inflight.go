@@ -23,11 +23,12 @@ type Cq struct {
 	sync.RWMutex
 	conn     *net.UDPConn
 	cache    *cache.Cache
+	sq       *Sq
 	inflight map[string][]chan bool
 }
 
-func NewClientQueue(conn *net.UDPConn, cache *cache.Cache) *Cq {
-	cq := &Cq{conn: conn, cache: cache, inflight: make(map[string][]chan bool, 0)}
+func NewClientQueue(conn *net.UDPConn, cache *cache.Cache, sq *Sq) *Cq {
+	cq := &Cq{conn: conn, cache: cache, sq: sq, inflight: make(map[string][]chan bool, 0)}
 	cache.RegisterPutCallback(cq.handlePutCallback)
 	return cq
 }

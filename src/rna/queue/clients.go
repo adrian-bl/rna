@@ -158,6 +158,7 @@ POP_LOOP:
 	if err == nil {
 		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, q.Name)
 		cq.conn.WriteToUDP(packet.Assemble(pp), remoteNs)
+		cq.sq.registerQuery(pp.Questions[0], remoteNs)
 	}
 
 	return pp

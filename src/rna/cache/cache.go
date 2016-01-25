@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"net"
 	"rna/constants"
 	l "rna/log"
 	"rna/packet"
@@ -26,9 +27,10 @@ type cmap map[uint16]centry
 
 type Cache struct {
 	sync.RWMutex
-	CacheMap map[string]cmap
-	MissMap  map[string]cmap
-	Callback func(InjectSource)
+	CacheMap     map[string]cmap
+	MissMap      map[string]cmap
+	PutCallback  func(InjectSource)
+	VrfyCallback func(packet.QuestionFormat, *net.UDPAddr) bool
 }
 
 type InjectSource struct {
@@ -46,21 +48,29 @@ func NewNameCache() *Cache {
 
 // Registers a function to be called on cache inserts
 func (c *Cache) RegisterPutCallback(cb func(InjectSource)) {
-	c.Callback = cb
+	c.PutCallback = cb
+}
+
+// Registers a reply verify callback
+func (c *Cache) RegisterVeritfyCallback(cb func(packet.QuestionFormat, *net.UDPAddr) bool) {
+	c.VrfyCallback = cb
 }
 
 // Puts given entry into c's Cache
-func (c *Cache) Put(p *packet.ParsedPacket) {
+func (c *Cache) Put(p *packet.ParsedPacket, ns *net.UDPAddr) {
 	// FIXME: SHOULD CHECK IF SENDER IS PERMITTED TO TELL US ABOUT THIS!
 
-	var qname packet.Namelabel
-	var qtype uint16
-	for _, q := range p.Questions {
-		l.Debug("QNAME=%v", q.Name)
-		qname = q.Name
-		qtype = q.Type
+	if len(p.Questions) != 1 {
+		return
 	}
 
+	if c.VrfyCallback(p.Questions[0], ns) == false {
+		fmt.Printf("Dropping unexpected reply: %+v\n", p)
+		return
+	}
+
+	qname := p.Questions[0].Name
+	qtype := p.Questions[0].Type
 	isrc := InjectSource{Name: qname, Type: qtype}
 
 	if p.Header.Authoritative == true {
@@ -152,8 +162,8 @@ func (c *Cache) dump() {
 }
 
 func (c *Cache) notify(isrc InjectSource) {
-	if c.Callback != nil {
-		c.Callback(isrc)
+	if c.PutCallback != nil {
+		c.PutCallback(isrc)
 	}
 }
 
@@ -172,10 +182,10 @@ func (c *Cache) injectNegativeItem(isrc InjectSource, item packet.ResourceRecord
 	}
 
 	switch {
-		case item.Ttl < 5:
-			item.Ttl = 5
-		case item.Ttl > 600:
-			item.Ttl = 600
+	case item.Ttl < 5:
+		item.Ttl = 5
+	case item.Ttl > 600:
+		item.Ttl = 600
 	}
 
 	// xxx: The cache key for this entry should not be the response label but the
