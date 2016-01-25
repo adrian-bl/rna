@@ -52,7 +52,7 @@ func (l *Namelabel) IsChildOf(parent *Namelabel) bool {
 	}
 
 	for i := 1; i <= lp; i++ {
-		if l.name[lc-i] != parent.name[lp-i] {
+		if strings.ToUpper(l.name[lc-i]) != strings.ToUpper(parent.name[lp-i]) {
 			return false
 		}
 	}
