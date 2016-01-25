@@ -10,6 +10,7 @@ import (
 func TestXH(t *testing.T) {
 	na := &Namelabel{[]string{"com", ""}}
 	nb := &Namelabel{[]string{"example", "com", ""}}
+	nc := &Namelabel{[]string{"xeample", "com", ""}}
 
 	if na.IsChildOf(nb) == true {
 		panic(fmt.Errorf("Should not be true"))
@@ -19,8 +20,11 @@ func TestXH(t *testing.T) {
 		panic(fmt.Errorf("Should not be false"))
 	}
 
-	if na.IsChildOf(na) == true {
-		panic(fmt.Errorf("Same level should not be a child"))
+	if na.IsChildOf(na) == false {
+		panic(fmt.Errorf("Same level should be a child"))
 	}
 
+	if nc.IsChildOf(nb) == true {
+		panic(fmt.Errorf("This should be false"))
+	}
 }

@@ -76,7 +76,7 @@ func (c *Cache) Put(p *packet.ParsedPacket, ns *net.UDPAddr) {
 
 	if p.Header.Authoritative == true {
 		for _, n := range p.Answers {
-			if n.Class == constants.CLASS_IN && (n.Name.IsChildOf(xhlabel) || n.Name.IsEqual(xhlabel)) {
+			if n.Class == constants.CLASS_IN && n.Name.IsChildOf(xhlabel) {
 				c.injectPositiveItem(isrc, n)
 			}
 		}
