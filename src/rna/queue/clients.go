@@ -101,6 +101,7 @@ func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 func (cq Cq) advanceCache(q packet.QuestionFormat) *packet.ParsedPacket {
 	// our hardcoded, not so redundant slist
 	targetNS := "192.5.5.241:53"
+	targetXH := &packet.Namelabel{}
 	targetQT := q.Type
 
 POP_LOOP:
@@ -139,6 +140,7 @@ POP_LOOP:
 						l.Panic("Not an A type: %v", v)
 					}
 					targetNS = fmt.Sprintf("%d.%d.%d.%d:53", v.Data[0], v.Data[1], v.Data[2], v.Data[3])
+					targetXH = label
 					break POP_LOOP
 				}
 			}
@@ -158,7 +160,7 @@ POP_LOOP:
 	if err == nil {
 		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, q.Name)
 		cq.conn.WriteToUDP(packet.Assemble(pp), remoteNs)
-		cq.sq.registerQuery(pp.Questions[0], remoteNs)
+		cq.sq.registerQuery(pp.Questions[0], remoteNs, targetXH)
 	}
 
 	return pp

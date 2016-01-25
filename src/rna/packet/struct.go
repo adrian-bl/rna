@@ -51,8 +51,22 @@ func (l *Namelabel) IsChildOf(parent *Namelabel) bool {
 		return false
 	}
 
-	for i := 1 ; i <= lp ; i++ {
+	for i := 1; i <= lp; i++ {
 		if l.name[lc-i] != parent.name[lp-i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Returns true if the passed namelabel equals the reference
+func (l *Namelabel) IsEqual(x *Namelabel) bool {
+	if l.Len() != x.Len() {
+		return false
+	}
+
+	for i, v := range l.name {
+		if x.name[i] != v {
 			return false
 		}
 	}

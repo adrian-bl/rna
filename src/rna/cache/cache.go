@@ -30,7 +30,7 @@ type Cache struct {
 	CacheMap     map[string]cmap
 	MissMap      map[string]cmap
 	PutCallback  func(InjectSource)
-	VrfyCallback func(packet.QuestionFormat, *net.UDPAddr) bool
+	VrfyCallback func(packet.QuestionFormat, *net.UDPAddr) *packet.Namelabel
 }
 
 type InjectSource struct {
@@ -52,20 +52,21 @@ func (c *Cache) RegisterPutCallback(cb func(InjectSource)) {
 }
 
 // Registers a reply verify callback
-func (c *Cache) RegisterVeritfyCallback(cb func(packet.QuestionFormat, *net.UDPAddr) bool) {
+func (c *Cache) RegisterVeritfyCallback(cb func(packet.QuestionFormat, *net.UDPAddr) *packet.Namelabel) {
 	c.VrfyCallback = cb
 }
 
 // Puts given entry into c's Cache
 func (c *Cache) Put(p *packet.ParsedPacket, ns *net.UDPAddr) {
-	// FIXME: SHOULD CHECK IF SENDER IS PERMITTED TO TELL US ABOUT THIS!
-
 	if len(p.Questions) != 1 {
 		return
 	}
 
-	if c.VrfyCallback(p.Questions[0], ns) == false {
-		fmt.Printf("Dropping unexpected reply: %+v\n", p)
+	// Check if we have a CrossHierarchy (XH) label
+	// a nil value indicates that this reply is invalid
+	xhlabel := c.VrfyCallback(p.Questions[0], ns)
+	if xhlabel == nil {
+		l.Info("Dropping unexpected reply from %v", ns)
 		return
 	}
 
@@ -75,24 +76,29 @@ func (c *Cache) Put(p *packet.ParsedPacket, ns *net.UDPAddr) {
 
 	if p.Header.Authoritative == true {
 		for _, n := range p.Answers {
-			if n.Class == constants.CLASS_IN {
+			if n.Class == constants.CLASS_IN && (n.Name.IsChildOf(xhlabel) || n.Name.IsEqual(xhlabel)) {
 				c.injectPositiveItem(isrc, n)
 			}
 		}
 	}
 
+	// Scan if there any additional A or AAA records
 	for _, n := range p.Additionals {
-		if n.Class == constants.CLASS_IN {
-			c.injectPositiveItem(isrc, n)
+		if n.Class == constants.CLASS_IN && n.Name.IsChildOf(xhlabel) {
+			if n.Type == constants.TYPE_A || n.Type == constants.TYPE_AAAA {
+				c.injectPositiveItem(isrc, n)
+			}
 		}
 	}
 
 	for _, n := range p.Nameservers {
-		if n.Type == constants.TYPE_NS && n.Class == constants.CLASS_IN {
-			c.injectPositiveItem(isrc, n)
-		}
-		if p.Header.AnswerCount == 0 && n.Type == constants.TYPE_SOA && n.Class == constants.CLASS_IN {
-			c.injectNegativeItem(isrc, n, p.Header.ResponseCode)
+		if n.Class == constants.CLASS_IN && n.Name.IsChildOf(xhlabel) {
+			if n.Type == constants.TYPE_NS {
+				c.injectPositiveItem(isrc, n)
+			}
+			if p.Header.AnswerCount == 0 && n.Type == constants.TYPE_SOA {
+				c.injectNegativeItem(isrc, n, p.Header.ResponseCode)
+			}
 		}
 	}
 }
