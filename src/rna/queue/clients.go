@@ -20,11 +20,11 @@ type lookupRes struct {
 	negative bool
 }
 
-func (cq Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
+func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
 	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote})
 }
 
-func (cq Cq) clientLookup(cr *clientRequest) {
+func (cq *Cq) clientLookup(cr *clientRequest) {
 
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) == 1 {
@@ -53,7 +53,7 @@ func (cq Cq) clientLookup(cr *clientRequest) {
 
 }
 
-func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
+func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 
 	for i := 0; i < 5; {
 		cres, cerr := cq.cache.Lookup(q.Name, q.Type)
@@ -98,7 +98,7 @@ func (cq Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 	close(c)
 }
 
-func (cq Cq) advanceCache(q packet.QuestionFormat) *packet.ParsedPacket {
+func (cq *Cq) advanceCache(q packet.QuestionFormat) *packet.ParsedPacket {
 	// our hardcoded, not so redundant slist
 	targetNS := "192.5.5.241:53"
 	targetXH := &packet.Namelabel{}
