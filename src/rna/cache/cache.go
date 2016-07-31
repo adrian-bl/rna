@@ -115,17 +115,31 @@ func (c *Cache) Lookup(label packet.Namelabel, t uint16) (rr *CacheResult, re *C
 	defer c.Unlock()
 
 	if c.CacheMap[key] != nil {
-		if c.CacheMap[key][t] != nil {
-			ent := make([]packet.ResourceRecordFormat, 0)
-			for _, item := range c.CacheMap[key][t] {
-				if now.Before(item.deadline) {
-					ttl := uint32(item.deadline.Sub(now).Seconds())
-					ent = append(ent, packet.ResourceRecordFormat{Name: label, Class: constants.CLASS_IN, Type: t, Ttl: ttl, Data: item.data})
+		qtypes := []uint16{t}                         // the types we are going to query from the cache
+		ent := make([]packet.ResourceRecordFormat, 0) // the final response
+
+		if t == constants.QTYPE_ALL && len(c.CacheMap[key]) > 0 {
+			// special case: This was an ANY query and we DO have some data.
+			// As QTYPE_ALL is not a valid type, we are just going to return all rr's we got data for
+			qtypes = []uint16{}
+			for k, _ := range c.CacheMap[key] {
+				qtypes = append(qtypes, k)
+			}
+		}
+
+		for _, qtype := range qtypes {
+			if c.CacheMap[key][qtype] != nil {
+				for _, item := range c.CacheMap[key][qtype] {
+					if now.Before(item.deadline) {
+						ttl := uint32(item.deadline.Sub(now).Seconds())
+						ent = append(ent, packet.ResourceRecordFormat{Name: label, Class: constants.CLASS_IN, Type: qtype, Ttl: ttl, Data: item.data})
+					}
 				}
 			}
-			if len(ent) > 0 { // ensure to return a null pointer if ent is empty
-				rr = &CacheResult{ResourceRecord: ent, ResponseCode: constants.RC_NO_ERR}
-			}
+		}
+
+		if len(ent) > 0 { // ensure to return a null pointer if ent is empty
+			rr = &CacheResult{ResourceRecord: ent, ResponseCode: constants.RC_NO_ERR}
 		}
 	}
 
