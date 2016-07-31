@@ -107,8 +107,8 @@ func (c *Cache) Put(p *packet.ParsedPacket, ns *net.UDPAddr) {
 // rr will be nil if there was no positive match
 // re will be nil if there was no negative match
 // rr == re == nil if the entry is completely unknown
-func (c *Cache) Lookup(l packet.Namelabel, t uint16) (rr *CacheResult, re *CacheResult) {
-	key := l.ToKey()
+func (c *Cache) Lookup(label packet.Namelabel, t uint16) (rr *CacheResult, re *CacheResult) {
+	key := label.ToKey()
 	now := time.Now()
 
 	c.Lock()
@@ -120,7 +120,7 @@ func (c *Cache) Lookup(l packet.Namelabel, t uint16) (rr *CacheResult, re *Cache
 			for _, item := range c.CacheMap[key][t] {
 				if now.Before(item.deadline) {
 					ttl := uint32(item.deadline.Sub(now).Seconds())
-					ent = append(ent, packet.ResourceRecordFormat{Name: l, Class: constants.CLASS_IN, Type: t, Ttl: ttl, Data: item.data})
+					ent = append(ent, packet.ResourceRecordFormat{Name: label, Class: constants.CLASS_IN, Type: t, Ttl: ttl, Data: item.data})
 				}
 			}
 			if len(ent) > 0 { // ensure to return a null pointer if ent is empty
