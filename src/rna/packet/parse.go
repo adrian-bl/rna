@@ -125,15 +125,26 @@ func parseResourceRecord(buf []byte, spos int) (rr ResourceRecordFormat, c int, 
 		rr.Type = qf.Type
 		rr.Class = qf.Class
 		rr.Ttl = q_ttl
+		label := Namelabel{}
 		if c+q_rdlen <= len(buf) { // fixme!
 			switch rr.Type {
 			case constants.TYPE_NS:
 				fallthrough
 			case constants.TYPE_CNAME:
 				// This might be compressed: we uncompress this label
-				label, _, err := parseName(buf, c)
+				label, _, err = parseName(buf, c)
 				if err == nil {
 					rr.Data = EncodeName(label)
+				}
+			case constants.TYPE_MX:
+				if len(buf) > c+2 { // enough data for <uint16><char>
+					label, _, err = parseName(buf, c+2)
+					if err == nil {
+						// copy MX priority and add expanded label:
+						rr.Data = append([]byte{buf[c], buf[c+1]}, EncodeName(label)...)
+					}
+				} else {
+					err = fmt.Errorf("Invalid MX record")
 				}
 			default:
 				rr.Data = buf[c:(c + q_rdlen)]
@@ -161,8 +172,7 @@ func parseName(buf []byte, spos int) (n Namelabel, c int, err error) {
 	buflen := len(buf)
 	c = spos // start pos
 
-	err = fmt.Errorf("Malformed paket at %d", spos)
-
+	err = fmt.Errorf("Malformed packet at %d", spos)
 	for c < buflen {
 		l_len := int(buf[c])
 		l_end := c + int(buf[c]) + 1 // +1 because we skip this byte
