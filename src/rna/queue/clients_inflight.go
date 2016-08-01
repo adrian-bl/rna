@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"fmt"
 	"net"
 	"rna/cache"
 	l "rna/log"
@@ -9,15 +8,6 @@ import (
 	"sync"
 	"time"
 )
-
-type putCbItem struct {
-	Key  string
-	Type uint16
-}
-
-func (r *putCbItem) ToString() string {
-	return fmt.Sprintf("%d->%s", r.Type, r.Key)
-}
 
 type Cq struct {
 	sync.RWMutex

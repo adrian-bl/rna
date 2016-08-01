@@ -4,18 +4,18 @@ import "strings"
 
 // The parsed representation of a DNS header
 type ParsedPacketHeader struct {
-	Id              uint16
-	Response        bool
-	Opcode          uint8
-	Authoritative   bool
-	Truncated       bool
-	RecDesired      bool
-	RecAvailable    bool
-	ResponseCode    uint8
-	QuestionCount   uint16
-	AnswerCount     uint16
-	NameserverCount uint16
-	AdditionalCount uint16
+	Id              uint16 // Id of this query
+	Response        bool   // `true' if this is a response (qr)
+	Opcode          uint8  // The RFC1035 opcode of this query (usually OP_QUERY)
+	Authoritative   bool   // `true' if we have authorative data in the reply
+	Truncated       bool   // `true' if the query was truncated and might be re-done using TCP or EDNS
+	RecDesired      bool   // `true' if the client asked us to resolve recursively
+	RecAvailable    bool   // indicates if the host generating this reply is willing to do recursive queries
+	ResponseCode    uint8  // RFC1035 response code, such as NXDOMAIN
+	QuestionCount   uint16 // Number of questions in this packet
+	AnswerCount     uint16 // Number of items in the answer section
+	NameserverCount uint16 // Number of items in the NS section
+	AdditionalCount uint16 // Number of items in the additional section
 }
 
 // String array typed to describe DNS labels
