@@ -10,22 +10,24 @@ import (
 	"rna/packet"
 )
 
+// A (parsed) request sent by a client
 type clientRequest struct {
 	Query      *packet.ParsedPacket
 	RemoteAddr *net.UDPAddr
 }
 
+// The result of a lookup operation
 type lookupRes struct {
 	cres     *cache.CacheResult
 	negative bool
 }
 
+// Starts the lookup of a new client request
 func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
 	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote})
 }
 
 func (cq *Cq) clientLookup(cr *clientRequest) {
-
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) == 1 {
 		q := cr.Query.Questions[0]
@@ -46,13 +48,15 @@ func (cq *Cq) clientLookup(cr *clientRequest) {
 				p.Answers = append(p.Answers, cres.ResourceRecord...)
 			}
 			cq.conn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
+		} else {
+			l.Info("Lookup returned an error, should send it back to client (fixme): %+v", lres)
 		}
 	} else {
 		l.Info("Dropping nonsense query")
 	}
-
 }
 
+// Our shiny lookup loop
 func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 
 	for i := 0; i < 5; {
@@ -112,6 +116,8 @@ POP_LOOP:
 		if nsrec != nil { // we got an NS cache entry for this level
 			var candidate_cres *cache.CacheResult
 			var candidate_label packet.Namelabel
+
+			// loop trough all NS servers for this record
 			for _, candidate_data := range nsrec.ResourceRecord {
 				name, err := packet.ParseName(candidate_data.Data)
 				if err == nil {
@@ -124,6 +130,11 @@ POP_LOOP:
 					}
 				}
 			}
+
+			// Fixme: We should try to resolve (yet unknown) nameservers
+			// even if we got a candidate_res as the one we are contacting
+			// might fail for some reason.
+
 			if candidate_cres == nil && candidate_label.Len() > 0 {
 				l.Debug("Looking up IP of known candidate: %v", candidate_label)
 				c := make(chan *lookupRes)

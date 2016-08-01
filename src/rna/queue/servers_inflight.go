@@ -25,6 +25,9 @@ func NewServerQueue(nc *cache.Cache) *Sq {
 	return sq
 }
 
+// registerQuery registers that we sent given question for given label to the specified IP
+// you are then supposed to call handleVerifyCallback() to verify that an incoming reply
+// was actually requested
 func (sq *Sq) registerQuery(q packet.QuestionFormat, ns *net.UDPAddr, label *packet.Namelabel) {
 	sq.Lock()
 	sq.q[sq.c] = SqEntry{key: sq.toKey(q, ns), xhlabel: label}
@@ -35,6 +38,7 @@ func (sq *Sq) registerQuery(q packet.QuestionFormat, ns *net.UDPAddr, label *pac
 	}
 }
 
+// returns the namelabel (if any) wich was registered via registerQuery() for given question
 func (sq *Sq) handleVerifyCallback(q packet.QuestionFormat, ns *net.UDPAddr) *packet.Namelabel {
 	key := sq.toKey(q, ns)
 	sq.Lock()
