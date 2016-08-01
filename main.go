@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"net"
 	"rna/cache"
 	"rna/constants"
@@ -9,10 +11,15 @@ import (
 	"rna/queue"
 )
 
-func main() {
-	l.Info("Starting up")
+var listenPort = flag.Int("port", 53, "Bind to this port, defaults to 53")
 
-	listenAddr, err := net.ResolveUDPAddr("udp", ":5353")
+func main() {
+	flag.Parse()
+
+	listenStr := fmt.Sprintf(":%d", *listenPort)
+	l.Info("Starting up, listening on %s", listenStr)
+
+	listenAddr, err := net.ResolveUDPAddr("udp", listenStr)
 	if err != nil {
 		l.Panic("ResolveUDPAddr failed: %v", err)
 	}
