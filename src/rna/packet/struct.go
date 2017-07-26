@@ -25,7 +25,13 @@ type Namelabel struct {
 
 // Returns a string version of given Namelabel reference
 func (l *Namelabel) ToKey() string {
-	return strings.ToUpper(strings.Join(l.name, "/") + ";")
+	return strings.ToUpper(l.ToCaseSensitiveKey())
+}
+
+// Returns a CASE SENSITIVE key.
+// Use this if you want to verify a ShuffleCases()'ed namelabel
+func (l *Namelabel) ToCaseSensitiveKey() string {
+	return strings.Join(l.name, "/") + ";"
 }
 
 // Pops a label from the label list, walking the hierarchy
@@ -57,6 +63,17 @@ func (l *Namelabel) IsChildOf(parent *Namelabel) bool {
 		}
 	}
 	return true
+}
+
+// Returns a copy of this namelabel but with
+// shuffled cases
+func (l *Namelabel) ShuffleCases() *Namelabel {
+	var result []string
+	for _, v := range l.name {
+		// fixme: use something random, not Title()
+		result = append(result, strings.Title(v))
+	}
+	return &Namelabel{result}
 }
 
 // A fully parsed DNS packet

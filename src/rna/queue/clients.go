@@ -165,11 +165,11 @@ POP_LOOP:
 	pp.Header.Id = uint16(rand.Uint32()) // will simply overflow
 	pp.Header.Opcode = constants.OP_QUERY
 	pp.Header.QuestionCount = 1
-	pp.Questions = []packet.QuestionFormat{{Name: q.Name, Class: constants.CLASS_IN, Type: targetQT}}
+	pp.Questions = []packet.QuestionFormat{{Name: *q.Name.ShuffleCases(), Class: constants.CLASS_IN, Type: targetQT}}
 	remoteNs, err := net.ResolveUDPAddr("udp", targetNS)
 
 	if err == nil {
-		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, q.Name)
+		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, pp.Questions[0].Name)
 		cq.conn.WriteToUDP(packet.Assemble(pp), remoteNs)
 		cq.sq.registerQuery(pp.Questions[0], remoteNs, targetXH)
 	}
