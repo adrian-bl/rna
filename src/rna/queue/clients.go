@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"rna/constants"
 	l "rna/log"
 	"rna/packet"
+	"time"
 )
 
 // A (parsed) request sent by a client
@@ -18,21 +20,35 @@ type clientRequest struct {
 
 // The result of a lookup operation
 type lookupRes struct {
-	cres     *cache.CacheResult
-	negative bool
+	cres   *cache.CacheResult
+	status int
+}
+
+const (
+	LR_POSITIVE = 0
+	LR_NEGATIVE = 1
+	LR_TIMEOUT  = 2
+)
+
+type qCtx struct {
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 // Starts the lookup of a new client request
 func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
-	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote})
+	d := time.Now().Add(1250 * time.Millisecond)
+	ctx, cancel := context.WithDeadline(context.Background(), d)
+	qctx := &qCtx{context: ctx, cancel: cancel}
+	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote}, qctx)
 }
 
-func (cq *Cq) clientLookup(cr *clientRequest) {
+func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) == 1 {
 		q := cr.Query.Questions[0]
 		c := make(chan *lookupRes)
-		go cq.collapsedLookup(q, c)
+		go cq.collapsedLookup(q, c, qctx)
 		lres := <-c
 		l.Debug("final lookup reply -> %v", lres)
 		if lres != nil { // fixme: error
@@ -42,10 +58,13 @@ func (cq *Cq) clientLookup(cr *clientRequest) {
 			p.Header.Response = true
 			p.Header.ResponseCode = cres.ResponseCode
 			p.Questions = cr.Query.Questions
-			if lres.negative {
-				p.Nameservers = append(p.Nameservers, cres.ResourceRecord...)
-			} else {
+			switch lres.status {
+			case LR_POSITIVE:
 				p.Answers = append(p.Answers, cres.ResourceRecord...)
+			case LR_NEGATIVE:
+				p.Nameservers = append(p.Nameservers, cres.ResourceRecord...)
+			default:
+				// nil
 			}
 			cq.conn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
 		} else {
@@ -57,16 +76,21 @@ func (cq *Cq) clientLookup(cr *clientRequest) {
 }
 
 // Our shiny lookup loop
-func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
+func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, qctx *qCtx) {
 
 	for i := 0; i < 5; {
+		if qctx.context.Err() != nil {
+			c <- &lookupRes{&cache.CacheResult{}, LR_TIMEOUT}
+			break
+		}
+
 		cres, cerr := cq.cache.Lookup(q.Name, q.Type)
 		if cres != nil {
-			c <- &lookupRes{cres, false}
+			c <- &lookupRes{cres, LR_POSITIVE}
 			break
 		}
 		if cerr != nil {
-			c <- &lookupRes{cerr, true}
+			c <- &lookupRes{cerr, LR_NEGATIVE}
 			break
 		}
 
@@ -80,20 +104,20 @@ func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 					// Restart query with cname label but inherit types of original query.
 					target_chan := make(chan *lookupRes)
 					target_q := packet.QuestionFormat{Name: target_label, Type: q.Type, Class: q.Class}
-					go cq.collapsedLookup(target_q, target_chan)
+					go cq.collapsedLookup(target_q, target_chan, qctx)
 					target_res := <-target_chan
 					if target_res != nil {
 						// not a dead cname: we got the requested record -> append it to original cache reply
 						cres.ResourceRecord = append(cres.ResourceRecord, target_res.cres.ResourceRecord...)
 					}
-					c <- &lookupRes{cres, false}
+					c <- &lookupRes{cres, LR_POSITIVE}
 				}
 			}
 			break
 		}
 
-		pp := cq.advanceCache(q)
-		progress := cq.blockForQuery(pp)
+		pp := cq.advanceCache(q, qctx)
+		progress := cq.blockForQuery(pp, qctx)
 		if progress == false {
 			i++
 		}
@@ -102,7 +126,7 @@ func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes) {
 	close(c)
 }
 
-func (cq *Cq) advanceCache(q packet.QuestionFormat) *packet.ParsedPacket {
+func (cq *Cq) advanceCache(q packet.QuestionFormat, qctx *qCtx) *packet.ParsedPacket {
 	// our hardcoded, not so redundant slist
 	targetNS := "192.5.5.241:53"
 	targetXH := &packet.Namelabel{}
@@ -138,9 +162,9 @@ POP_LOOP:
 			if candidate_cres == nil && candidate_label.Len() > 0 {
 				l.Debug("Looking up IP of known candidate: %v", candidate_label)
 				c := make(chan *lookupRes)
-				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c)
+				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c, qctx)
 				lres := <-c
-				if lres != nil && lres.negative == false {
+				if lres != nil && lres.status == LR_POSITIVE {
 					candidate_cres = lres.cres
 				}
 			}

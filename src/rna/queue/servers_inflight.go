@@ -44,7 +44,6 @@ func (sq *Sq) handleVerifyCallback(q packet.QuestionFormat, ns *net.UDPAddr) *pa
 	sq.Lock()
 	defer sq.Unlock()
 	for i, e := range sq.q {
-		fmt.Printf("Reply was: %s\n", e.key)
 		if e.key == key {
 			sq.q[i] = SqEntry{}
 			return e.xhlabel

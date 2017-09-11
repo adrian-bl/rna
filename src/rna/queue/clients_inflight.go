@@ -23,7 +23,7 @@ func NewClientQueue(conn *net.UDPConn, cache *cache.Cache, sq *Sq) *Cq {
 	return cq
 }
 
-func (cq *Cq) blockForQuery(pp *packet.ParsedPacket) bool {
+func (cq *Cq) blockForQuery(pp *packet.ParsedPacket, qctx *qCtx) bool {
 	cbi := &putCbItem{Key: pp.Questions[0].Name.ToKey(), Type: pp.Questions[0].Type}
 	key := cbi.ToString()
 
@@ -42,8 +42,10 @@ func (cq *Cq) blockForQuery(pp *packet.ParsedPacket) bool {
 		return true
 	case <-time.After(time.Second * 2):
 		l.Debug("%s timed out!", key)
-		return false
+	case <-qctx.context.Done():
+		l.Debug("%s context deadline reached", key)
 	}
+	return false
 }
 
 func (cq *Cq) handlePutCallback(isrc cache.InjectSource) {
