@@ -50,6 +50,8 @@ func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
 		c := make(chan *lookupRes)
 		go cq.collapsedLookup(q, c, qctx)
 		lres := <-c
+		qctx.cancel()
+
 		l.Debug("final lookup reply -> %v", lres)
 		if lres != nil { // fixme: error
 			cres := lres.cres
