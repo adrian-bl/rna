@@ -68,7 +68,7 @@ func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
 			default:
 				// nil
 			}
-			cq.conn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
+			cq.rconn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
 		} else {
 			l.Info("Lookup returned an error, should send it back to client (fixme): %+v", lres)
 		}
@@ -196,7 +196,7 @@ POP_LOOP:
 
 	if err == nil {
 		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, pp.Questions[0].Name)
-		cq.conn.WriteToUDP(packet.Assemble(pp), remoteNs)
+		cq.sconn.WriteToUDP(packet.Assemble(pp), remoteNs)
 		cq.sq.registerQuery(pp.Questions[0], remoteNs, targetXH)
 	}
 
