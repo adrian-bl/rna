@@ -2,10 +2,10 @@ package cache
 
 import (
 	"fmt"
+	"github.com/adrian-bl/rna/lib/constants"
+	l "github.com/adrian-bl/rna/lib/log"
+	"github.com/adrian-bl/rna/lib/packet"
 	"net"
-	"rna/constants"
-	l "rna/log"
-	"rna/packet"
 	"sync"
 	"time"
 )

@@ -2,7 +2,7 @@ package packet
 
 import (
 	"fmt"
-	"rna/constants"
+	"github.com/adrian-bl/rna/lib/constants"
 )
 
 func Parse(buf []byte) (p *ParsedPacket, perr error) {

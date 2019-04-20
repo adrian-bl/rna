@@ -2,9 +2,9 @@ package queue
 
 import (
 	"fmt"
+	"github.com/adrian-bl/rna/lib/cache"
+	"github.com/adrian-bl/rna/lib/packet"
 	"net"
-	"rna/cache"
-	"rna/packet"
 	"sync"
 )
 

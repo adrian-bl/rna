@@ -1,10 +1,10 @@
 package queue
 
 import (
+	"github.com/adrian-bl/rna/lib/cache"
+	l "github.com/adrian-bl/rna/lib/log"
+	"github.com/adrian-bl/rna/lib/packet"
 	"net"
-	"rna/cache"
-	l "rna/log"
-	"rna/packet"
 	"sync"
 	"time"
 )

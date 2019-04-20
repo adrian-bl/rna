@@ -1,7 +1,7 @@
 package packet
 
 import (
-	"rna/constants"
+	"github.com/adrian-bl/rna/lib/constants"
 )
 
 // Assemble returns binary payload for a ParsedPacket

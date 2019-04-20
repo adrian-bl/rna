@@ -3,12 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/adrian-bl/rna/lib/cache"
+	"github.com/adrian-bl/rna/lib/constants"
+	l "github.com/adrian-bl/rna/lib/log"
+	"github.com/adrian-bl/rna/lib/packet"
+	"github.com/adrian-bl/rna/lib/queue"
 	"net"
-	"rna/cache"
-	"rna/constants"
-	l "rna/log"
-	"rna/packet"
-	"rna/queue"
 )
 
 var listenPort = flag.Int("port", 53, "Bind to this port, defaults to 53")

@@ -3,12 +3,12 @@ package queue
 import (
 	"context"
 	"fmt"
+	"github.com/adrian-bl/rna/lib/cache"
+	"github.com/adrian-bl/rna/lib/constants"
+	l "github.com/adrian-bl/rna/lib/log"
+	"github.com/adrian-bl/rna/lib/packet"
 	"math/rand"
 	"net"
-	"rna/cache"
-	"rna/constants"
-	l "rna/log"
-	"rna/packet"
 	"time"
 )
 
