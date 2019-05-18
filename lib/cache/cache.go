@@ -22,7 +22,11 @@ type citem struct {
 	deadline time.Time
 	rcode    uint8
 }
+
+// centry is a cache entry.
 type centry map[string]citem
+
+// cmap maps keys t centries.
 type cmap map[uint16]centry
 
 type Cache struct {

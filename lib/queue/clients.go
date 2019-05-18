@@ -45,35 +45,36 @@ func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) 
 
 func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
 	// Ensure that this query makes some sense
-	if len(cr.Query.Questions) == 1 {
-		q := cr.Query.Questions[0]
-		c := make(chan *lookupRes)
-		go cq.collapsedLookup(q, c, qctx)
-		lres := <-c
-		qctx.cancel()
+	if len(cr.Query.Questions) != 1 {
+		l.Info("Dropping query with non-1 question")
+		return
+	}
 
-		l.Debug("final lookup reply -> %v", lres)
-		if lres != nil { // fixme: error
-			cres := lres.cres
-			p := &packet.ParsedPacket{}
-			p.Header.Id = cr.Query.Header.Id
-			p.Header.Response = true
-			p.Header.ResponseCode = cres.ResponseCode
-			p.Questions = cr.Query.Questions
-			switch lres.status {
-			case LR_POSITIVE:
-				p.Answers = append(p.Answers, cres.ResourceRecord...)
-			case LR_NEGATIVE:
-				p.Nameservers = append(p.Nameservers, cres.ResourceRecord...)
-			default:
-				// nil
-			}
-			cq.rconn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
-		} else {
-			l.Info("Lookup returned an error, should send it back to client (fixme): %+v", lres)
+	q := cr.Query.Questions[0]
+	c := make(chan *lookupRes)
+	go cq.collapsedLookup(q, c, qctx)
+	lres := <-c
+	qctx.cancel()
+
+	l.Debug("final lookup reply -> %v", lres)
+	if lres != nil { // fixme: error
+		cres := lres.cres
+		p := &packet.ParsedPacket{}
+		p.Header.Id = cr.Query.Header.Id
+		p.Header.Response = true
+		p.Header.ResponseCode = cres.ResponseCode
+		p.Questions = cr.Query.Questions
+		switch lres.status {
+		case LR_POSITIVE:
+			p.Answers = append(p.Answers, cres.ResourceRecord...)
+		case LR_NEGATIVE:
+			p.Nameservers = append(p.Nameservers, cres.ResourceRecord...)
+		default:
+			// nil
 		}
+		cq.rconn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
 	} else {
-		l.Info("Dropping nonsense query")
+		l.Info("Lookup returned an error, should send it back to client (fixme): %+v", lres)
 	}
 }
 
