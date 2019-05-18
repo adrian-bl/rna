@@ -14,8 +14,7 @@ import (
 
 // A (parsed) request sent by a client
 type clientRequest struct {
-	Query      *packet.ParsedPacket
-	RemoteAddr *net.UDPAddr
+	Query *packet.ParsedPacket
 }
 
 // The result of a lookup operation
@@ -39,15 +38,21 @@ type qCtx struct {
 func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
 	d := time.Now().Add(1250 * time.Millisecond)
 	ctx, cancel := context.WithDeadline(context.Background(), d)
-	qctx := &qCtx{context: ctx, cancel: cancel}
-	go cq.clientLookup(&clientRequest{Query: query, RemoteAddr: remote}, qctx)
+	go func() {
+		qctx := &qCtx{context: ctx, cancel: cancel}
+		data, err := cq.clientLookup(&clientRequest{Query: query}, qctx)
+		if err == nil {
+			cq.rconn.WriteToUDP(data, remote)
+		} else {
+			panic(err)
+		}
+	}()
 }
 
-func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
+func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) ([]byte, error) {
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) != 1 {
-		l.Info("Dropping query with non-1 question")
-		return
+		return nil, fmt.Errorf("Expected query with 1 question, had %d", len(cr.Query.Questions))
 	}
 
 	q := cr.Query.Questions[0]
@@ -72,10 +77,9 @@ func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) {
 		default:
 			// nil
 		}
-		cq.rconn.WriteToUDP(packet.Assemble(p), cr.RemoteAddr)
-	} else {
-		l.Info("Lookup returned an error, should send it back to client (fixme): %+v", lres)
+		return packet.Assemble(p), nil
 	}
+	return nil, fmt.Errorf("query returned lres: %+v; fixme: send error to client", lres)
 }
 
 // Our shiny lookup loop
