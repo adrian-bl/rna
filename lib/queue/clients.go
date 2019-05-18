@@ -36,7 +36,7 @@ type qCtx struct {
 
 // Starts the lookup of a new client request
 func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) {
-	d := time.Now().Add(1250 * time.Millisecond)
+	d := time.Now().Add(6500 * time.Millisecond)
 	ctx, cancel := context.WithDeadline(context.Background(), d)
 	go func() {
 		// FIXME: This should be done lazely, otherwise we create a socket for cache hits.
