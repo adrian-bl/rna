@@ -39,8 +39,15 @@ func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) 
 	d := time.Now().Add(1250 * time.Millisecond)
 	ctx, cancel := context.WithDeadline(context.Background(), d)
 	go func() {
+		// FIXME: This should be done lazely, otherwise we create a socket for cache hits.
+		sconn, err := cq.newServerReader()
+		if err != nil {
+			panic(err)
+		}
+		defer sconn.Close()
+
 		qctx := &qCtx{context: ctx, cancel: cancel}
-		data, err := cq.clientLookup(&clientRequest{Query: query}, qctx)
+		data, err := cq.clientLookup(&clientRequest{Query: query}, sconn, qctx)
 		if err == nil {
 			cq.rconn.WriteToUDP(data, remote)
 		} else {
@@ -49,7 +56,7 @@ func (cq *Cq) AddClientRequest(query *packet.ParsedPacket, remote *net.UDPAddr) 
 	}()
 }
 
-func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) ([]byte, error) {
+func (cq *Cq) clientLookup(cr *clientRequest, sconn *net.UDPConn, qctx *qCtx) ([]byte, error) {
 	// Ensure that this query makes some sense
 	if len(cr.Query.Questions) != 1 {
 		return nil, fmt.Errorf("Expected query with 1 question, had %d", len(cr.Query.Questions))
@@ -57,7 +64,7 @@ func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) ([]byte, error) {
 
 	q := cr.Query.Questions[0]
 	c := make(chan *lookupRes)
-	go cq.collapsedLookup(q, c, qctx)
+	go cq.collapsedLookup(q, c, sconn, qctx)
 	lres := <-c
 	qctx.cancel()
 
@@ -83,7 +90,7 @@ func (cq *Cq) clientLookup(cr *clientRequest, qctx *qCtx) ([]byte, error) {
 }
 
 // Our shiny lookup loop
-func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, qctx *qCtx) {
+func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, sconn *net.UDPConn, qctx *qCtx) {
 
 	for i := 0; i < 5; {
 		if qctx.context.Err() != nil {
@@ -111,7 +118,7 @@ func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, qctx *
 					// Restart query with cname label but inherit types of original query.
 					target_chan := make(chan *lookupRes)
 					target_q := packet.QuestionFormat{Name: target_label, Type: q.Type, Class: q.Class}
-					go cq.collapsedLookup(target_q, target_chan, qctx)
+					go cq.collapsedLookup(target_q, target_chan, sconn, qctx)
 					target_res := <-target_chan
 					if target_res != nil {
 						// not a dead cname: we got the requested record -> append it to original cache reply
@@ -123,7 +130,7 @@ func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, qctx *
 			break
 		}
 
-		pp := cq.advanceCache(q, qctx)
+		pp := cq.advanceCache(q, sconn, qctx)
 		progress := cq.blockForQuery(pp, qctx)
 		if progress == false {
 			i++
@@ -133,7 +140,7 @@ func (cq *Cq) collapsedLookup(q packet.QuestionFormat, c chan *lookupRes, qctx *
 	close(c)
 }
 
-func (cq *Cq) advanceCache(q packet.QuestionFormat, qctx *qCtx) *packet.ParsedPacket {
+func (cq *Cq) advanceCache(q packet.QuestionFormat, sconn *net.UDPConn, qctx *qCtx) *packet.ParsedPacket {
 	// our hardcoded, not so redundant slist
 	targetNS := "192.5.5.241:53"
 	targetXH := &packet.Namelabel{}
@@ -169,7 +176,7 @@ POP_LOOP:
 			if candidate_cres == nil && candidate_label.Len() > 0 {
 				l.Debug("Looking up IP of known candidate: %v", candidate_label)
 				c := make(chan *lookupRes)
-				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c, qctx)
+				go cq.collapsedLookup(packet.QuestionFormat{Type: constants.TYPE_A, Class: constants.CLASS_IN, Name: candidate_label}, c, sconn, qctx)
 				lres := <-c
 				if lres != nil && lres.status == LR_POSITIVE {
 					candidate_cres = lres.cres
@@ -201,7 +208,7 @@ POP_LOOP:
 
 	if err == nil {
 		l.Info("+ op=query, remote=%s, type=%d, id=%d, name=%v", targetNS, targetQT, pp.Header.Id, pp.Questions[0].Name)
-		cq.sconn.WriteToUDP(packet.Assemble(pp), remoteNs)
+		sconn.WriteToUDP(packet.Assemble(pp), remoteNs)
 		cq.sq.registerQuery(pp.Questions[0], remoteNs, targetXH)
 	}
 

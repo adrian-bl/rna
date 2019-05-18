@@ -12,14 +12,13 @@ import (
 type Cq struct {
 	sync.RWMutex
 	rconn    *net.UDPConn
-	sconn    *net.UDPConn
 	cache    *cache.Cache
 	sq       *Sq
 	inflight map[string][]chan bool
 }
 
-func NewClientQueue(rconn *net.UDPConn, sconn *net.UDPConn, cache *cache.Cache, sq *Sq) *Cq {
-	cq := &Cq{rconn: rconn, sconn: sconn, cache: cache, sq: sq, inflight: make(map[string][]chan bool, 0)}
+func NewClientQueue(rconn *net.UDPConn, cache *cache.Cache, sq *Sq) *Cq {
+	cq := &Cq{rconn: rconn, cache: cache, sq: sq, inflight: make(map[string][]chan bool, 0)}
 	cache.RegisterPutCallback(cq.handlePutCallback)
 	return cq
 }
